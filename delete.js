@@ -10,10 +10,14 @@
 // @match           https://*.discord.com/login
 // @license         MIT
 // @namespace       https://github.com/noydra/discord-dm-deleter
-// @grant           none
+// @run-at          document-start
+// @grant           unsafeWindow
+// @grant           GM_addStyle
 // ==/UserScript==
 (function () {
 	'use strict';
+
+	const win = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
 
 	const VERSION = '1.0.0';
 	const HOME = 'https://github.com/noydra/discord-dm-deleter';
@@ -970,9 +974,12 @@ body.ndr-pick.after [id^="message-content-"]:hover::after { content: 'After'; }
 	}
 
 	function insertCss(css) {
+		if (typeof GM_addStyle === 'function') {
+			try { return GM_addStyle(css); } catch (_) { /* fallback */ }
+		}
 		const s = document.createElement('style');
-		s.appendChild(document.createTextNode(css));
-		document.head.appendChild(s);
+		s.textContent = css;
+		(document.head || document.documentElement).appendChild(s);
 		return s;
 	}
 
@@ -1004,8 +1011,8 @@ body.ndr-pick.after [id^="message-content-"]:hover::after { content: 'After'; }
 		try {
 			let req;
 			const id = 'ndr_' + Math.random().toString(36).slice(2);
-			window.webpackChunkdiscord_app.push([[id], {}, r => { req = r; }]);
-			window.webpackChunkdiscord_app.pop();
+			win.webpackChunkdiscord_app.push([[id], {}, r => { req = r; }]);
+			win.webpackChunkdiscord_app.pop();
 			if (!req) throw new Error('webpack require not found');
 			const modules = Object.values(req.c || {});
 			for (const mod of modules) {
@@ -1069,7 +1076,18 @@ body.ndr-pick.after [id^="message-content-"]:hover::after { content: 'After'; }
 	const ui = {};
 	const $ = s => ui.app.querySelector(s);
 
-	function initUI() {
+	async function waitForBody() {
+		if (document.body) return;
+		await new Promise(r => {
+			const obs = new MutationObserver(() => {
+				if (document.body) { obs.disconnect(); r(); }
+			});
+			obs.observe(document.documentElement, { childList: true });
+		});
+	}
+
+	async function initUI() {
+		await waitForBody();
 		insertCss(themeCss);
 
 		ui.app = createElm(interp(appHtml, { VERSION, HOME, WIKI }));
